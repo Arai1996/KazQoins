@@ -1,1 +1,449 @@
-index.html
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>KazQoins (UI + AI + Chart + Manual Input)</title>
+<style>
+  :root{--bg1:#6f2bd9;--bg2:#1aa5ff;--muted:rgba(255,255,255,.75);--green:#12c46b;}
+  html,body{height:100%;margin:0}
+  body{background:linear-gradient(120deg,var(--bg1),var(--bg2));font-family:Inter,Segoe UI,Roboto,Arial,sans-serif;color:#fff;display:flex;justify-content:center;align-items:flex-start;padding:36px}
+  .wrap{display:grid;grid-template-columns:560px;gap:18px}
+  .card{background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.08);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.35);backdrop-filter:blur(6px);padding:18px}
+  .header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .tabs{display:flex;gap:8px;margin:6px 0 14px;flex-wrap:wrap}
+  .tab{padding:8px 12px;border-radius:12px;background:transparent;border:none;color:var(--muted);cursor:pointer}
+  .tab.active{background:linear-gradient(90deg,#29d67a,#12c46b);color:#06271b;box-shadow:0 8px 18px rgba(18,196,107,.18)}
+  .section{padding:14px;background:rgba(0,0,0,.05);border-radius:12px;margin-bottom:12px}
+  .balance{font-weight:800;font-size:30px}
+  .line{height:10px;background:rgba(255,255,255,.1);border-radius:10px;overflow:hidden}
+  .fill{height:100%;background:linear-gradient(90deg,#12c46b,#06a56a);width:0%;transition:width .3s}
+  .controls{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .btn{padding:10px 12px;border-radius:12px;border:none;cursor:pointer;font-weight:700}
+  .ghost{background:rgba(255,255,255,.08);color:var(--muted)}
+  .green{background:linear-gradient(90deg,#29d67a,#12c46b);color:#06271b}
+  .subtle{opacity:.9;font-size:13px}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  /* bank card */
+  .bank3d{height:180px;border-radius:18px;position:relative;transform-style:preserve-3d;transition:transform .25s ease, box-shadow .25s ease;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.04));border:1px solid rgba(255,255,255,.12);box-shadow:0 25px 60px rgba(0,0,0,.25);overflow:hidden}
+  .bank3d:hover{box-shadow:0 30px 80px rgba(0,0,0,.35)}
+  .bank-chip{position:absolute;left:18px;top:18px;width:42px;height:30px;border-radius:6px;background:linear-gradient(135deg,#ffe9a3,#d9b654)}
+  .bank-logo{position:absolute;right:18px;top:18px;font-weight:800}
+  .bank-pan{position:absolute;left:18px;bottom:56px;letter-spacing:2px;font-size:18px}
+  .bank-name{position:absolute;left:18px;bottom:22px;opacity:.95}
+  .bank-ctl{display:flex;gap:8px;margin-top:10px}
+  .history{max-height:240px;overflow:auto}
+  .history li{list-style:none;margin:6px 0;background:rgba(0,0,0,.09);padding:6px 8px;border-radius:8px}
+  .ai{display:flex;gap:10px;align-items:flex-start}
+  .ai-bubble{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:14px;padding:12px;flex:1}
+  .ai-actions{display:flex;gap:8px;margin-top:8px}
+  /* chart */
+  .chart-wrap{background:rgba(0,0,0,.07);border-radius:12px;padding:10px}
+  canvas{width:100%;height:220px;border-radius:10px;background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.04))}
+  /* modal */
+  .modal-backdrop{position:fixed;left:0;top:0;right:0;bottom:0;background:rgba(0,0,0,0.55);display:none;align-items:center;justify-content:center;z-index:9999}
+  .modal{background:#fff;color:#222;padding:16px;border-radius:12px;width:360px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .modal input{width:100%;padding:10px;margin-top:6px;border-radius:8px;border:1px solid #ddd;box-sizing:border-box}
+
+  /* money fly + card flash */
+  .money-fly{
+    position:fixed;
+    font-size:22px;
+    font-weight:800;
+    color:#ffd44f;
+    pointer-events:none;
+    transition: transform .85s cubic-bezier(.25,.46,.45,.94), opacity .85s;
+    z-index:99999;
+  }
+  .bank3d.flash{ box-shadow:0 0 24px rgba(255,255,255,.55), inset 0 0 24px rgba(255,255,255,.35); }
+
+.toast{position:fixed;bottom:20px;right:20px;background:#12c46b;color:#fff;padding:12px 16px;border-radius:12px;font-weight:700;opacity:0;transition:opacity .4s;z-index:99999;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="card">
+    <div class="header">
+      <div></div>
+      <h2 style="margin:0">KazQoins</h2> <select id="langSel" style="margin-left:8px;padding:4px;border-radius:8px"><option value="ru">RU</option><option value="kz">KZ</option></select>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="home">🏠 Главная</button>
+      <button class="tab" data-tab="goals">🎯 Цели</button>
+      <button class="tab" data-tab="history">📜 История</button>
+      <button class="tab" data-tab="ai">🤖 Советник</button>
+      <button class="tab" data-tab="chart">📈 График</button>
+    </div>
+
+    <!-- HOME -->
+    <section id="home" class="section">
+      <div style="display:flex;align-items:center">
+        <div style="font-size:18px">💰 Баланс</div>
+        <div id="goalBadge" style="margin-left:auto">Цель: 50 000 ₸</div>
+      </div>
+      <div class="balance" id="balanceText">0 ₸</div>
+      <div class="line"><div id="goalFill" class="fill"></div></div>
+      <div class="subtle" id="percentText">0% выполнено</div>
+      <div class="controls">
+        <button class="btn green" id="roundBtn">Округлить покупку</button>
+<button class="btn ghost" id="bonusBtn">🎁 Бонус</button>
+        <button class="btn ghost" id="topupBtn">Пополнить цель</button>
+        <button class="btn ghost" id="simulateBtn">Симулировать трату</button>
+      </div>
+
+      <div class="two-col" style="margin-top:14px">
+        <div>
+          <div class="bank3d" id="bankCard">
+            <div class="bank-chip"></div>
+            <div class="bank-logo" id="bankLogo">Kaspi</div>
+            <div class="bank-pan" id="bankPan">4400 33•• ••77 1234</div>
+            <div class="bank-name" id="bankHolder">User</div>
+          </div>
+          <div class="bank-ctl">
+            <select id="bankSelect" style="flex:1">
+              <option value="Kaspi">Kaspi</option>
+              <option value="Halyk">Halyk</option>
+              <option value="Jusan">Jusan</option>
+            </select>
+            <!-- cardType removed -->
+            <button class="btn green" id="bindBtn">Привязать</button>
+          </div>
+          <div class="subtle" id="bindInfo" style="margin-top:6px">Банк не выбран</div>
+        </div>
+
+        <div class="ai-bubble" id="quickTips">
+          <b>Подсказка:</b> теперь можно вводить суммы вручную. Симуляция берёт сумму покупки, округляет до 100 и пополняет цель разницу.
+          <div class="ai-actions">
+            <button class="btn green" id="aiForecastBtn">Прогноз цели</button>
+            <button class="btn ghost" id="aiTipsBtn">Как быстрее достичь?</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- GOALS -->
+    <section id="goals" class="section" style="display:none">
+      <div style="display:flex;align-items:center">
+        <h3 style="margin:0">Мои цели</h3>
+        <button class="btn green" id="addGoal" style="margin-left:auto">➕ Добавить цель</button>
+      </div>
+      <ul id="goalsList"></ul>
+    </section>
+
+    <!-- HISTORY -->
+    <section id="history" class="section" style="display:none">
+      <h3 style="margin:0 0 8px 0">История</h3>
+      <ul id="historyUl" class="history"></ul>
+    </section>
+
+    <!-- AI -->
+    <section id="ai" class="section" style="display:none">
+      <div class="ai">
+        <div class="ai-bubble" id="aiOut">Советник готов. Нажмите «Прогноз цели» или «Как быстрее достичь?».</div>
+      </div>
+    </section>
+
+    <!-- CHART -->
+    <section id="chart" class="section" style="display:none">
+      <h3 style="margin:0 0 6px 0">График баланса</h3>
+      <div class="chart-wrap">
+        <canvas id="progressChart" width="600" height="220" aria-label="График"></canvas>
+      </div>
+      <div class="subtle" id="chartHint" style="margin-top:6px">Точки появляются после пополнений/округлений/симуляций.</div>
+    </section>
+
+  </div>
+
+</div>
+
+<!-- Modal for manual amount -->
+<div id="amountModal" class="modal-backdrop">
+  <div class="modal">
+    <h3 id="amountTitle">Введите сумму (₸)</h3>
+    <input type="number" id="amountField" placeholder="Например, 500" min="1">
+    <div style="text-align:right;margin-top:10px">
+      <button class="btn ghost" id="amountCancel">Отмена</button>
+      <button class="btn green" id="amountOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---------- STATE ----------
+const KEY='kaz_full_pro_state';
+let S = JSON.parse(localStorage.getItem(KEY) || '{}');
+if(!S.balance){ S={balance:14700, goal:50000, bank:null,  pan:'44003377771234', holder:'User', history:[], goals:[], points:[]}; }
+const save=()=>{ localStorage.setItem(KEY, JSON.stringify(S)); };
+const money = n => (n||0).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+
+// ---------- UI refs ----------
+const balanceText = document.getElementById('balanceText');
+const goalFill = document.getElementById('goalFill');
+const percentText = document.getElementById('percentText');
+const goalBadge = document.getElementById('goalBadge');
+const historyUl = document.getElementById('historyUl');
+const goalsList = document.getElementById('goalsList');
+const bankCard = document.getElementById('bankCard');
+const bankLogo = document.getElementById('bankLogo');
+const bankPan  = document.getElementById('bankPan');
+const bankHolder = document.getElementById('bankHolder');
+const bindInfo = document.getElementById('bindInfo');
+const canvas = document.getElementById('progressChart');
+const ctx = canvas.getContext('2d');
+
+// ---------- helpers ----------
+
+// === Language ===
+const L={
+ ru:{home:'🏠 Главная',goals:'🎯 Цели',history:'📜 История',ai:'🤖 Советник',chart:'📈 График',
+     balance:'💰 Баланс',goal:'Цель',round:'Округлить покупку',topup:'Пополнить цель',simulate:'Симулировать трату',
+     add:'➕ Добавить цель',enter:'Введите сумму (₸)',cancel:'Отмена',ok:'OK',bankNone:'Банк не выбран',
+     bind:'Привязать',newGoal:'Название цели:',sum:'Сумма (₸):',delGoal:'Удалить цель?',up:'Цель обновлена 🎯',del:'Цель удалена 🗑️'},
+ kz:{home:'🏠 Басты бет',goals:'🎯 Мақсаттар',history:'📜 Тарих',ai:'🤖 Кеңесші',chart:'📈 График',
+     balance:'💰 Баланс',goal:'Мақсат',round:'Сатып алуды дөңгелектеу',topup:'Мақсатты толтыру',simulate:'Шығынды модельдеу',
+     add:'➕ Мақсат қосу',enter:'Соманы енгізіңіз (₸)',cancel:'Болдырмау',ok:'OK',bankNone:'Банк таңдалмаған',
+     bind:'Байлау',newGoal:'Мақсат атауы:',sum:'Сома (₸):',delGoal:'Мақсатты жою?',up:'Мақсат жаңартылды 🎯',del:'Мақсат жойылды 🗑️'}
+};
+let lang=localStorage.getItem('lang')||'ru';
+function T(k){return L[lang][k]||k;}
+function applyLang(){
+ document.querySelector("[data-tab='home']").textContent=T('home');
+ document.querySelector("[data-tab='goals']").textContent=T('goals');
+ document.querySelector("[data-tab='history']").textContent=T('history');
+ document.querySelector("[data-tab='ai']").textContent=T('ai');
+ document.querySelector("[data-tab='chart']").textContent=T('chart');
+ document.getElementById('roundBtn').textContent=T('round');
+ document.getElementById('topupBtn').textContent=T('topup');
+ document.getElementById('simulateBtn').textContent=T('simulate');
+ document.getElementById('addGoal').textContent=T('add');
+ document.getElementById('bindBtn').textContent=T('bind');
+ document.getElementById('amountTitle').textContent=T('enter');
+ document.getElementById('amountCancel').textContent=T('cancel');
+ document.getElementById('amountOk').textContent=T('ok');
+ document.getElementById('bindInfo').textContent=S.bank?(S.bank):T('bankNone');
+ document.getElementById('goalBadge').innerHTML=T('goal')+': '+money(S.goal)+' ₸';
+}
+document.getElementById('langSel').value=lang;
+document.getElementById('langSel').onchange=e=>{lang=e.target.value;localStorage.setItem('lang',lang);applyLang();renderAll();};
+
+function pushPoint(label){
+  S.points.push({t:Date.now(), balance:S.balance, label});
+  if(S.points.length>400) S.points.shift();
+  save();
+}
+function renderAll(){
+  balanceText.textContent = money(S.balance)+' ₸';
+  goalBadge.textContent = 'Цель: '+money(S.goal)+' ₸';
+  const pct = Math.min(100, Math.round(S.balance / S.goal * 100));
+  percentText.textContent = pct + '% выполнено';
+  goalFill.style.width = pct + '%';
+  renderBank(); renderHistory(); renderGoals();
+  if(currentTab==='chart') drawChart(true);
+}
+function renderHistory(){
+  historyUl.innerHTML = S.history.slice().reverse().map(x=>`<li>${x}</li>`).join('');
+}
+function renderGoals(){
+  goalsList.innerHTML=(S.goals||[]).map((g,i)=>`
+    <li style="margin:6px 0;padding:6px;border-radius:10px;background:rgba(255,255,255,.08);display:flex;justify-content:space-between;align-items:center;">
+      <span><b>${g.name}</b> — ${money(g.amount)} ₸</span>
+      <span>
+        ${S.activeGoalIndex===i?'<span style="color:#12c46b;font-weight:800">✅</span>':`<button class='btn green' data-set='${i}'>▶</button>`}
+        <button class='btn ghost' data-del='${i}'>🗑️</button>
+      </span>
+    </li>`).join('');
+  document.querySelectorAll("[data-set]").forEach(b=>b.onclick=()=>{
+    S.activeGoalIndex=+b.dataset.set;S.goal=S.goals[S.activeGoalIndex].amount;
+    showToast(T("up"));save();renderAll();showTab('home');
+  });
+  document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{
+    if(!confirm(T('delGoal')))return;
+    const i=+b.dataset.del;S.goals.splice(i,1);
+    if(S.activeGoalIndex===i||S.activeGoalIndex>=S.goals.length){S.activeGoalIndex=0;S.goal=S.goals[0]?.amount||0;}
+    showToast(T("del"));save();renderAll();
+  });
+}
+function renderBank(){
+  bankLogo.textContent = S.bank || 'Kaspi';
+  bankHolder.textContent = S.holder;
+  bankPan.textContent = S.pan.replace(/(\d{4})(\d{4})(\d{2})(\d{2})(\d{4})/, '$1 $2 ••$3 ••$4 $5');
+  bindInfo.textContent = S.bank ? ('Привязанный банк: '+S.bank+' • ') : 'Банк не выбран';
+  const map={Kaspi:['#ff6363','#7b0d0d'],Halyk:['#2bd99f','#064b3a'],Jusan:['#ff7f50','#7b230d']};
+  const pal = map[S.bank||'Kaspi'];
+  bankCard.style.background = `linear-gradient(135deg, ${pal[0]}, ${pal[1]})`;
+}
+
+// 3D tilt
+bankCard.addEventListener('mousemove', (e)=>{
+  const r = bankCard.getBoundingClientRect();
+  const cx = r.left + r.width/2, cy = r.top + r.height/2;
+  const dx = (e.clientX - cx)/r.width, dy = (e.clientY - cy)/r.height;
+  bankCard.style.transform = `rotateY(${dx*12}deg) rotateX(${-dy*10}deg)`;
+});
+bankCard.addEventListener('mouseleave', ()=> bankCard.style.transform='rotateY(0deg) rotateX(0deg)');
+
+// ---------- actions with manual input ----------
+let pendingAction=null;
+const modal = document.getElementById('amountModal');
+const amountField = document.getElementById('amountField');
+document.getElementById('amountCancel').onclick = ()=> modal.style.display='none';
+
+document.getElementById('amountOk').onclick = ()=>{
+  const v = Math.round(Number(amountField.value)||0);
+  if(v<=0){ alert('Введите сумму больше 0'); return; }
+  if(pendingAction==='round'){
+    flyMoney(v);
+    setTimeout(()=>{
+      S.balance += v; S.history.push(`${bankTag()} → Округление +${v} ₸`); pushPoint('+'+v);
+      showToast('💳 Поступление на карту +'+v+' ₸'); // ToastInRound
+      save(); modal.style.display='none'; renderAll();
+if(S.goals&&S.goals.length>0){if(S.activeGoalIndex===undefined||S.activeGoalIndex>=S.goals.length)S.activeGoalIndex=0;S.goal=S.goals[S.activeGoalIndex].amount;}
+    },820);
+  }else if(pendingAction==='topup'){
+    flyMoney(v);
+    setTimeout(()=>{
+      S.balance += v; S.history.push(`${bankTag()} → Пополнение +${v} ₸`); pushPoint('+'+v);
+      showToast('💳 Поступление на карту +'+v+' ₸'); // ToastInTopup
+      save(); modal.style.display='none'; renderAll();
+    },820);
+  }else if(pendingAction==='simulate'){
+    const rounded = Math.ceil(v/100)*100 - v;
+    flyMoney(rounded>0?rounded:0);
+    setTimeout(()=>{
+      S.balance -= v; S.history.push(`${bankTag()} → Покупка -${v} ₸`); pushPoint('-'+v);
+      if(rounded>0){ S.balance += rounded; S.history.push(`${bankTag()} → Округление +${rounded} ₸`); pushPoint('+'+rounded);
+        showToast('💳 Поступление на карту +'+rounded+' ₸'); // ToastInSimRounded
+      }
+      save(); modal.style.display='none'; renderAll();
+    },820);
+  }
+};
+
+
+document.getElementById('roundBtn').onclick = ()=>{ pendingAction='round'; document.getElementById('amountTitle').textContent='Ввести сумму округления (₸)'; amountField.value=''; modal.style.display='flex'; amountField.focus(); };
+document.getElementById('topupBtn').onclick = ()=>{ pendingAction='topup'; document.getElementById('amountTitle').textContent='Ввести сумму пополнения (₸)'; amountField.value=''; modal.style.display='flex'; amountField.focus(); };
+document.getElementById('simulateBtn').onclick = ()=>{ pendingAction='simulate'; document.getElementById('amountTitle').textContent='Сумма покупки (₸)'; amountField.value=''; modal.style.display='flex'; amountField.focus(); };
+
+// bind/select
+document.getElementById('bindBtn').onclick = ()=>{
+  S.bank = document.getElementById('bankSelect').value;
+  
+  S.pan = S.pan || '44003377771234';
+  S.history.push('Привязан банк: '+S.bank+' ('+')'); pushPoint('bind'); save(); renderAll();
+};
+
+// goals
+document.getElementById('addGoal').onclick = ()=>{
+  const name = prompt(T('newGoal'), 'Новый телефон') || 'Цель';
+  const amount = parseInt(prompt(T('sum'), '150000')||'0');
+  if(amount <= 0) return;
+
+  // add goal
+  S.goals.push({name, amount});
+  S.history.push('Добавлена цель: '+name+' — '+amount+' ₸');
+
+  // animation
+  flyMoney(amount);
+
+  setTimeout(()=>{
+    S.balance += amount;
+    S.history.push(`Начальное пополнение цели +${amount} ₸`);
+    pushPoint('+'+amount);
+    save(); renderAll(); showTab('home');
+  },820);
+};
+
+
+// bonus
+document.getElementById('bonusBtn').onclick = ()=>{
+  const bonus = Math.floor(Math.random()*401)+100; // 100-500 ₸
+  flyMoney(bonus);
+  setTimeout(()=>{
+    S.balance += bonus;
+    S.history.push(`Бонус +${bonus} ₸`);
+    pushPoint('+'+bonus);
+    save(); renderAll(); showToast("🎁 Бонус начислен +"+bonus+" ₸");
+  },820);
+};
+
+// AI adviser
+function avgDailySaving(){ let total=0,cnt=0; S.history.forEach(h=>{const m=h.match(/\+(\d+)\s*₸/); if(m){total+=+m[1];cnt++;}}); if(cnt===0)return 0; const days=Math.max(1,Math.min(7,cnt)); return Math.round(total/days); }
+function forecastText(){ if(S.balance>=S.goal)return"Цель достигнута! 🎉"; const need=S.goal-S.balance; const avg=avgDailySaving(); if(avg<=0)return"Нет регулярных пополнений. Включи округление и минимум 200–500 ₸/день."; const days=Math.ceil(need/avg); const eta=new Date(Date.now()+days*86400000); return `Темп ~${avg} ₸/день. До цели: ${need.toLocaleString()} ₸. Примерно ${days} дн. (к ${eta.toLocaleDateString()}).`; }
+function tipsText(){ const avg=avgDailySaving(); let tips=["Включи симуляции — сдача уходит в цель.","Минимум/день: 300–500 ₸.","Промежуточные подцели 25/50/75%."]; if(avg<300)tips.unshift("Сейчас низкий темп — правило +300 ₸ в будни."); if(S.bank!=='Kaspi')tips.push("Подумай о Kaspi Red."); return "Идеи ускорения:\n• "+tips.join("\n• "); }
+const aiOut=document.getElementById('aiOut'); document.getElementById('aiForecastBtn').onclick=()=>{aiOut.textContent=forecastText();showTab('ai');}; document.getElementById('aiTipsBtn').onclick=()=>{aiOut.textContent=tipsText();showTab('ai');};
+
+// chart
+function drawChart(){
+  const w = canvas.width, h = canvas.height, pad=36;
+  const P = (S.points.length?S.points:[{balance:S.balance}]).slice(-18);
+  const values = P.map(p=>p.balance);
+  const maxVal = Math.max(S.goal, ...values)*1.05;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle='rgba(255,255,255,.14)'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad,pad); ctx.lineTo(pad,h-pad); ctx.lineTo(w-pad,h-pad); ctx.stroke();
+  const goalY = h-pad-(S.goal/maxVal)*(h-2*pad);
+  ctx.setLineDash([5,5]); ctx.beginPath(); ctx.moveTo(pad,goalY); ctx.lineTo(w-pad,goalY); ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.stroke(); ctx.setLineDash([]);
+  const stepX=(w-2*pad)/Math.max(1,(P.length-1));
+  ctx.beginPath();
+  P.forEach((p,i)=>{const x=pad+i*stepX; const y=h-pad-(p.balance/maxVal)*(h-2*pad); if(i==0)ctx.moveTo(x,y); else ctx.lineTo(x,y);});
+  ctx.strokeStyle='#12c46b'; ctx.lineWidth=2.2; ctx.stroke();
+  P.forEach((p,i)=>{const x=pad+i*stepX; const y=h-pad-(p.balance/maxVal)*(h-2*pad); ctx.beginPath(); ctx.arc(x,y,3.6,0,6.283); ctx.fillStyle='#12c46b'; ctx.fill();});
+}
+
+// tabs
+let currentTab='home';
+function showTab(id){ currentTab=id; document.querySelectorAll('.section').forEach(s=>s.style.display='none'); document.getElementById(id).style.display='block'; document.querySelectorAll('.tab').forEach(b=>b.classList.toggle('active', b.dataset.tab===id)); if(id==='chart') drawChart(); }
+document.querySelectorAll('.tab').forEach(b=> b.onclick=()=> showTab(b.dataset.tab));
+
+// init
+renderAll();
+
+
+function showToast(m){const t=document.getElementById('toast');t.textContent=m;t.style.opacity=1;setTimeout(()=>t.style.opacity=0,1500);}
+// === Helpers injected ===
+function bankTag(){
+  try{
+    const b = (window.S && S.bank) || (document.getElementById('bankSelect')?.value)||'Bank';
+    const t = (window.S && S.cardType) || (document.getElementById('cardType')?.value)||'Card';
+    return b;
+  }catch(e){ return 'Bank'; }
+}
+function playDing(){
+  try{
+    const ac = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type='triangle'; o.frequency.value=880; g.gain.value=0.0001;
+    o.connect(g); g.connect(ac.destination); o.start();
+    g.gain.exponentialRampToValueAtTime(0.2, ac.currentTime+0.02);
+    g.gain.exponentialRampToValueAtTime(0.00001, ac.currentTime+0.22);
+    o.stop(ac.currentTime+0.24);
+  }catch(e){}
+}
+function flyMoney(amount){
+  try{
+    const card = document.getElementById('bankCard').getBoundingClientRect();
+    const bal  = document.getElementById('balanceText').getBoundingClientRect();
+    const el = document.createElement('div');
+    el.className='money-fly'; el.textContent='₸'+amount;
+    document.body.appendChild(el);
+    el.style.left = (card.left + card.width/2)+'px';
+    el.style.top  = (card.top + 12)+'px';
+    document.getElementById('bankCard').classList.add('flash');
+    playDing();
+    requestAnimationFrame(()=>{
+      el.style.transform = `translate(${bal.left - card.left}px, ${bal.top - card.top}px) scale(.65)`;
+      el.style.opacity='0';
+    });
+    setTimeout(()=>{
+      el.remove();
+      document.getElementById('bankCard').classList.remove('flash');
+    },900);
+  }catch(e){ console.warn(e); }
+}
+
+</script>
+<div id='toast' class='toast'></div>
+</body>
+</html>
